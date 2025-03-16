@@ -1,5 +1,5 @@
-import { StatusBar } from "expo-status-bar";
-import { useState } from "react";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { useEffect, useState } from "react";
 import {
   StyleSheet,
   Text,
@@ -8,14 +8,16 @@ import {
   TextInput,
   TouchableOpacity,
 } from "react-native";
+import Toast from "react-native-toast-message";
 
 export default function App() {
   const [data, setData] = useState([
+    
     {
       id: "1",
       header_task: "Task 1",
       subscription: "Task 1 done",
-      completed: false, 
+      completed: false,
     },
     {
       id: "2",
@@ -31,38 +33,87 @@ export default function App() {
     },
   ]);
 
+  useEffect(() => {
+    loadTasks();
+  }, []);
+
+
+  const loadTasks = async () => {
+    try {
+      const storedTasks = await AsyncStorage.getItem("tasks");
+      if (storedTasks) {
+        setData(JSON.parse(storedTasks));
+      }
+    } catch (error) {
+      console.error("Failed to load tasks", error);
+    }
+  };
+
   const [taskInput, setTaskInput] = useState("");
   const [descInput, setDescInput] = useState("");
 
-  const addTask = () => {
-    if (taskInput.trim() === "" || descInput.trim() === "") return; 
+  const addTask = async () => {
+    if (taskInput.trim() === "" || descInput.trim() === "") {
+      Toast.show({
+        type: "error",
+        text1: "Error",
+        text2: "Task name and description cannot be empty",
+      });
+      return;
+    }
 
     const newTask = {
-      id: (data.length + 1).toString(), 
+      id: Date.now().toString(),
       header_task: taskInput,
-      subscription: descInput, 
-      completed: false, 
+      subscription: descInput,
+      completed: false,
     };
 
-    setData([...data, newTask]); 
+    const updatedTasks = [...data, newTask];
+    setData(updatedTasks);
+    await saveTasks(updatedTasks);
+
     setTaskInput("");
-    setDescInput(""); 
+    setDescInput("");
+
+    Toast.show({
+      type: "success",
+      text1: "Success",
+      text2: "Task added successfully!",
+    });
   };
 
-  const toggleComplete = (id) => {
-    setData((prevData) =>
-      prevData.map((task) =>
-        task.id === id ? { ...task, completed: !task.completed } : task
-      )
+
+  const toggleComplete = async (id) => {
+    const updatedTasks = data.map((task) =>
+      task.id === id ? { ...task, completed: !task.completed } : task
     );
+    setData(updatedTasks);
+    await saveTasks(updatedTasks);
   };
 
-  // Hàm xóa công việc
-  const deleteTask = (id) => {
-    setData((prevData) => prevData.filter((task) => task.id !== id));
+
+  const deleteTask = async (id) => {
+    const updatedTasks = data.filter((task) => task.id !== id);
+    setData(updatedTasks);
+    await saveTasks(updatedTasks);
+
+    Toast.show({
+      type: "info",
+      text1: "Task Deleted",
+      text2: "The task has been removed successfully.",
+    });
   };
 
-  // Hàm render từng công việc
+
+  const saveTasks = async (tasks) => {
+    try {
+      await AsyncStorage.setItem("tasks", JSON.stringify(tasks));
+    } catch (error) {
+      console.error("Failed to save tasks", error);
+    }
+  };
+
   const renderItem = ({ item }) => (
     <TouchableOpacity onPress={() => toggleComplete(item.id)}>
       <View
@@ -93,7 +144,6 @@ export default function App() {
     <View style={styles.container}>
       <View style={styles.headerContainer}>
         <Text style={styles.header}>Todo List</Text>
-        {/* <StatusBar style="auto" /> */}
       </View>
 
       <View style={styles.inputContainer}>
@@ -124,6 +174,7 @@ export default function App() {
         keyExtractor={(item) => item.id}
         contentContainerStyle={styles.listContainer}
       />
+      <Toast />
     </View>
   );
 }
@@ -204,12 +255,6 @@ const styles = StyleSheet.create({
     backgroundColor: "#33CC66",
   },
 
-  taskContent: {
-    flexDirection: "row",
-    alignItems: "center",
-    flex: 1,
-  },
-
   textContainer: {
     flex: 1,
   },
@@ -221,7 +266,7 @@ const styles = StyleSheet.create({
   },
 
   completedText: {
-    color: "black ",
+    color: "black",
   },
 
   completedLabel: {
